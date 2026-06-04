@@ -1,0 +1,182 @@
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "name": "CRM Platform",
+  "version": "1.0.0",
+  "description": "A simple CRM built from JSON config",
+
+  "auth": {
+    "providers": ["credentials", "google"],
+    "defaultRole": "user",
+    "sessionType": "jwt",
+    "sessionMaxAge": 86400,
+    "roles": [
+      { "name": "admin",   "label": "Administrator", "permissions": ["*"] },
+      { "name": "manager", "label": "Manager",        "permissions": ["contacts:read", "contacts:create", "contacts:update", "deals:*"] },
+      { "name": "user",    "label": "User",            "permissions": ["contacts:read", "deals:read"] }
+    ]
+  },
+
+  "i18n": {
+    "defaultLocale": "en",
+    "supportedLocales": ["en", "fr", "de", "es"],
+    "namespaces": ["common", "crm"]
+  },
+
+  "theme": {
+    "primaryColor": "#6366f1",
+    "fontFamily": "Inter",
+    "borderRadius": "md",
+    "darkMode": false
+  },
+
+  "resources": [
+    {
+      "name": "contacts",
+      "label": "Contacts",
+      "timestamps": true,
+      "softDelete": true,
+      "fields": [
+        { "name": "firstName",  "type": "text",   "label": "First Name",  "required": true },
+        { "name": "lastName",   "type": "text",   "label": "Last Name",   "required": true },
+        { "name": "email",      "type": "email",  "label": "Email",       "required": true, "unique": true },
+        { "name": "phone",      "type": "text",   "label": "Phone" },
+        { "name": "company",    "type": "text",   "label": "Company" },
+        { "name": "status",     "type": "select", "label": "Status",
+          "options": ["lead", "prospect", "customer", "churned"],
+          "defaultValue": "lead" },
+        { "name": "score",      "type": "number", "label": "Lead Score",
+          "validation": { "min": 0, "max": 100 } },
+        { "name": "notes",      "type": "richtext","label": "Notes" }
+      ],
+      "permissions": {
+        "create": ["admin", "manager"],
+        "read":   ["*"],
+        "update": ["admin", "manager"],
+        "delete": ["admin"]
+      }
+    },
+    {
+      "name": "deals",
+      "label": "Deals",
+      "timestamps": true,
+      "softDelete": false,
+      "fields": [
+        { "name": "title",     "type": "text",     "label": "Deal Title",  "required": true },
+        { "name": "value",     "type": "number",   "label": "Value ($)",   "required": true },
+        { "name": "stage",     "type": "select",   "label": "Stage",
+          "options": ["qualified", "proposal", "negotiation", "closed_won", "closed_lost"],
+          "defaultValue": "qualified" },
+        { "name": "contactId", "type": "relation", "label": "Contact",
+          "relation": { "resource": "contacts", "type": "one-to-many" } },
+        { "name": "closeDate", "type": "date",     "label": "Expected Close Date" }
+      ],
+      "permissions": {
+        "create": ["admin", "manager"],
+        "read":   ["admin", "manager", "user"],
+        "update": ["admin", "manager"],
+        "delete": ["admin"]
+      }
+    }
+  ],
+
+  "pages": [
+    {
+      "path": "/contacts",
+      "title": "Contacts",
+      "layout": "sidebar",
+      "permissions": ["*"],
+      "components": [
+        {
+          "id": "contacts-header-stat",
+          "type": "stat",
+          "resource": "contacts",
+          "config": { "label": "Total Contacts", "aggregation": "count" }
+        },
+        {
+          "id": "contacts-table",
+          "type": "table",
+          "resource": "contacts",
+          "title": "All Contacts",
+          "config": {
+            "columns": ["firstName", "lastName", "email", "status", "score"],
+            "searchable": true,
+            "sortable": true,
+            "actions": ["edit", "delete"]
+          }
+        }
+      ]
+    },
+    {
+      "path": "/deals",
+      "title": "Deals Pipeline",
+      "layout": "sidebar",
+      "permissions": ["admin", "manager", "user"],
+      "components": [
+        {
+          "id": "deals-kanban",
+          "type": "kanban",
+          "resource": "deals",
+          "config": {
+            "groupBy": "stage",
+            "cardFields": ["title", "value", "closeDate"]
+          }
+        }
+      ]
+    }
+  ],
+
+  "workflows": [
+    {
+      "id": "wf-new-contact-alert",
+      "name": "Alert team on new contact",
+      "enabled": true,
+      "trigger": {
+        "type": "record.created",
+        "resource": "contacts"
+      },
+      "steps": [
+        {
+          "id": "send-alert",
+          "type": "send_email",
+          "config": {
+            "to": "team@company.com",
+            "subject": "New contact: {{record.firstName}} {{record.lastName}}",
+            "html": "<p>A new contact was added: <strong>{{record.email}}</strong></p>"
+          },
+          "onSuccess": null,
+          "onFailure": null
+        }
+      ]
+    },
+    {
+      "id": "wf-score-high-lead",
+      "name": "Notify manager when lead score > 80",
+      "enabled": true,
+      "trigger": {
+        "type": "record.updated",
+        "resource": "contacts",
+        "fields": ["score"]
+      },
+      "steps": [
+        {
+          "id": "check-score",
+          "type": "condition",
+          "config": { "expression": "record.score > 80 && record.status === 'lead'" },
+          "onSuccess": "notify-manager",
+          "onFailure": null
+        },
+        {
+          "id": "notify-manager",
+          "type": "webhook",
+          "config": {
+            "url": "https://hooks.slack.com/services/xxx",
+            "method": "POST",
+            "body": { "text": "High-value lead: {{record.firstName}} {{record.lastName}} (score: {{record.score}})" }
+          },
+          "onSuccess": null,
+          "onFailure": null
+        }
+      ]
+    }
+  ]
+}

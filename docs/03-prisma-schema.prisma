@@ -1,0 +1,293 @@
+// ============================================================
+// Prisma Schema — Track A: AI App Generator
+// Database: PostgreSQL
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ── App Configuration ────────────────────────────────────────
+
+model App {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  configJson  Json     // the full AppConfig stored as JSONB
+  version     String   @default("1.0.0")
+  isPublished Boolean  @default(false)
+  ownerId     String
+  owner       User     @relation(fields: [ownerId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // relations
+  users         AppUser[]
+  importJobs    ImportJob[]
+  workflowRuns  WorkflowRun[]
+  localeStrings LocaleString[]
+  exportJobs    ExportJob[]
+  auditLogs     AuditLog[]
+
+  @@index([ownerId])
+}
+
+// ── Auth & Users ─────────────────────────────────────────────
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  name          String?
+  passwordHash  String?
+  emailVerified DateTime?
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts  Account[]
+  sessions  Session[]
+  ownedApps App[]
+  appUsers  AppUser[]
+}
+
+// NextAuth standard tables
+model Account {
+  id                String  @id @default(uuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(uuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// Per-app user membership & role
+model AppUser {
+  id        String   @id @default(uuid())
+  appId     String
+  userId    String
+  role      String   @default("user")
+  createdAt DateTime @default(now())
+
+  app  App  @relation(fields: [appId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([appId, userId])
+  @@index([appId])
+  @@index([userId])
+}
+
+// ── Dynamic Records ──────────────────────────────────────────
+// A generic record store for runtime-defined resources.
+// Fine for early stage; replace with per-resource tables via
+// SchemaSync for production-grade apps.
+
+model DynamicRecord {
+  id           String    @id @default(uuid())
+  appId        String
+  resourceName String
+  data         Json      // JSONB column — the actual record data
+  createdBy    String?
+  updatedBy    String?
+  deletedAt    DateTime? // soft-delete support
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([appId, resourceName])
+  @@index([appId, resourceName, deletedAt])
+}
+
+// ── CSV Import Pipeline ──────────────────────────────────────
+
+model ImportJob {
+  id             String          @id @default(uuid())
+  appId          String
+  resourceName   String
+  fileName       String
+  storageKey     String          // S3/R2 object key
+  status         ImportJobStatus @default(PENDING)
+  totalRows      Int             @default(0)
+  processedRows  Int             @default(0)
+  failedRows     Int             @default(0)
+  columnMappings Json?           // { csvHeader: resourceField }
+  errors         Json?           // array of { row, message }
+  startedAt      DateTime?
+  completedAt    DateTime?
+  createdBy      String
+  createdAt      DateTime        @default(now())
+
+  app App @relation(fields: [appId], references: [id], onDelete: Cascade)
+
+  @@index([appId])
+  @@index([status])
+}
+
+enum ImportJobStatus {
+  PENDING
+  MAPPING
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+// ── Workflow Engine ──────────────────────────────────────────
+
+model WorkflowRun {
+  id          String            @id @default(uuid())
+  appId       String
+  workflowId  String            // references config workflow.id
+  status      WorkflowRunStatus @default(PENDING)
+  triggerData Json?
+  startedAt   DateTime?
+  completedAt DateTime?
+  error       String?
+  createdAt   DateTime          @default(now())
+
+  app   App           @relation(fields: [appId], references: [id], onDelete: Cascade)
+  steps WorkflowStep[]
+
+  @@index([appId, workflowId])
+  @@index([status])
+}
+
+enum WorkflowRunStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+model WorkflowStep {
+  id          String               @id @default(uuid())
+  runId       String
+  stepId      String               // references config workflow step id
+  stepType    String
+  status      WorkflowStepStatus   @default(PENDING)
+  input       Json?
+  output      Json?
+  error       String?
+  startedAt   DateTime?
+  completedAt DateTime?
+
+  run WorkflowRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId])
+}
+
+enum WorkflowStepStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  SKIPPED
+}
+
+// ── i18n ─────────────────────────────────────────────────────
+
+model LocaleString {
+  id        String   @id @default(uuid())
+  appId     String
+  namespace String   @default("common")
+  locale    String
+  key       String
+  value     String   @db.Text
+  updatedAt DateTime @updatedAt
+
+  app App @relation(fields: [appId], references: [id], onDelete: Cascade)
+
+  @@unique([appId, namespace, locale, key])
+  @@index([appId, locale])
+}
+
+// ── GitHub Export ────────────────────────────────────────────
+
+model ExportJob {
+  id          String          @id @default(uuid())
+  appId       String
+  status      ExportJobStatus @default(PENDING)
+  storageKey  String?         // zip file in object storage
+  repoUrl     String?         // GitHub repo URL if pushed
+  error       String?
+  requestedBy String
+  createdAt   DateTime        @default(now())
+  completedAt DateTime?
+
+  app App @relation(fields: [appId], references: [id], onDelete: Cascade)
+
+  @@index([appId])
+}
+
+enum ExportJobStatus {
+  PENDING
+  GENERATING
+  UPLOADING
+  PUSHING
+  COMPLETED
+  FAILED
+}
+
+// ── Audit Log ────────────────────────────────────────────────
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  appId      String
+  userId     String?
+  action     String   // e.g. "record.create", "config.update"
+  resource   String?
+  recordId   String?
+  meta       Json?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  app App @relation(fields: [appId], references: [id], onDelete: Cascade)
+
+  @@index([appId, createdAt])
+  @@index([appId, resource])
+}
+
+// ── Config Version History ───────────────────────────────────
+
+model ConfigVersion {
+  id          String   @id @default(uuid())
+  appId       String
+  version     String
+  configJson  Json
+  changedBy   String
+  changeNote  String?
+  createdAt   DateTime @default(now())
+
+  @@index([appId, createdAt])
+}
