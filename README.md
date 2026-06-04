@@ -31,7 +31,6 @@
 14. [GitHub Export](#github-export)
 15. [Deployment](#deployment)
 16. [Contributing](#contributing)
-17. [License](#license)
 
 ---
 
