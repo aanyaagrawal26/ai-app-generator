@@ -4,83 +4,81 @@ import { loadConfig } from '@/lib/config/loader'
 import { getSession } from '@/lib/auth/session'
 import { hasPermission } from '@/lib/auth/permissions'
 import { buildZodSchema } from '@/lib/runtime/schemaBuilder'
-import { parseListQuery, buildPrismaQuery } from '@/lib/runtime/queryBuilder'
+import { parseListQuery } from '@/lib/runtime/queryBuilder'
 import { errorResponse, paginatedResponse } from '@/lib/utils/apiError'
 import { triggerWorkflowsForEvent } from '@/lib/workflow/engine'
 
-function getAppId(request: NextRequest): string | null {
-  return request.headers.get('x-app-id') ?? request.nextUrl.searchParams.get('appId')
+function getAppId(req: NextRequest) {
+  return req.headers.get('x-app-id') ?? req.nextUrl.searchParams.get('appId')
 }
 
-export async function GET(request: NextRequest, ctx: RouteContext<'/api/r/[resource]'>) {
+export async function GET(req: NextRequest, ctx: RouteContext<'/api/r/[resource]'>) {
   try {
     const session = await getSession()
-    const appId = getAppId(request)
+    const appId = getAppId(req)
     if (!appId) return Response.json({ error: { code: 'BAD_REQUEST', message: 'appId required' } }, { status: 400 })
 
     const { resource } = await ctx.params
     const { config } = await loadConfig(appId)
     const resourceDef = config.resources.find(r => r.name === resource)
     if (!resourceDef) return Response.json({ error: { code: 'UNKNOWN_RESOURCE', message: `Unknown resource: ${resource}` } }, { status: 404 })
+    if (!hasPermission(session, resourceDef.permissions.read)) return Response.json({ error: { code: 'FORBIDDEN', message: 'Access denied' } }, { status: 403 })
 
-    if (!hasPermission(session, resourceDef.permissions.read)) {
-      return Response.json({ error: { code: 'FORBIDDEN', message: 'Access denied' } }, { status: 403 })
+    const { page, limit, search } = parseListQuery(req.nextUrl)
+
+    // Build where clause
+    const conditions: string[] = [`appId = '${appId}'`, `resourceName = '${resource}'`, `deletedAt IS NULL`]
+    if (search) {
+      // SQLite JSON search via LIKE on the data column
+      conditions.push(`data LIKE '%${search.replace(/'/g, "''")}%'`)
     }
 
-    const query = parseListQuery(request.nextUrl)
-    const prismaQuery = buildPrismaQuery(query, resourceDef.fields)
+    const allRecords = await prisma.dynamicRecord.findMany({
+      where: { appId, resourceName: resource, deletedAt: null },
+      orderBy: { createdAt: 'desc' },
+    })
 
-    const [records, total] = await Promise.all([
-      prisma.dynamicRecord.findMany({
-        where:   { appId, resourceName: resource, deletedAt: null, ...prismaQuery.where },
-        orderBy: prismaQuery.orderBy as Parameters<typeof prisma.dynamicRecord.findMany>[0]['orderBy'],
-        skip:    prismaQuery.skip,
-        take:    prismaQuery.take,
-      }),
-      prisma.dynamicRecord.count({
-        where: { appId, resourceName: resource, deletedAt: null, ...prismaQuery.where },
-      }),
-    ])
+    // Filter by search in JS (SQLite JSON support is limited)
+    const filtered = search
+      ? allRecords.filter(r => JSON.stringify(r.data).toLowerCase().includes(search.toLowerCase()))
+      : allRecords
 
-    const data = records.map(r => ({ id: r.id, ...(r.data as object), createdAt: r.createdAt, updatedAt: r.updatedAt }))
-    return paginatedResponse(data, total, query.page, query.limit)
-  } catch (err) {
-    return errorResponse(err)
-  }
+    const total = filtered.length
+    const paginated = filtered.slice((page - 1) * limit, page * limit)
+
+    const data = paginated.map(r => {
+      const d = typeof r.data === 'string' ? JSON.parse(r.data as string) : r.data
+      return { id: r.id, ...d, createdAt: r.createdAt, updatedAt: r.updatedAt }
+    })
+
+    return paginatedResponse(data, total, page, limit)
+  } catch (err) { return errorResponse(err) }
 }
 
-export async function POST(request: NextRequest, ctx: RouteContext<'/api/r/[resource]'>) {
+export async function POST(req: NextRequest, ctx: RouteContext<'/api/r/[resource]'>) {
   try {
     const session = await getSession()
     if (!session) return Response.json({ error: { code: 'UNAUTHENTICATED', message: 'Not authenticated' } }, { status: 401 })
 
-    const appId = getAppId(request)
+    const appId = getAppId(req)
     if (!appId) return Response.json({ error: { code: 'BAD_REQUEST', message: 'appId required' } }, { status: 400 })
 
     const { resource } = await ctx.params
     const { config } = await loadConfig(appId)
     const resourceDef = config.resources.find(r => r.name === resource)
     if (!resourceDef) return Response.json({ error: { code: 'UNKNOWN_RESOURCE', message: `Unknown resource: ${resource}` } }, { status: 404 })
+    if (!hasPermission(session, resourceDef.permissions.create)) return Response.json({ error: { code: 'FORBIDDEN', message: 'Access denied' } }, { status: 403 })
 
-    if (!hasPermission(session, resourceDef.permissions.create)) {
-      return Response.json({ error: { code: 'FORBIDDEN', message: 'Access denied' } }, { status: 403 })
-    }
-
-    const body = await request.json()
+    const body = await req.json()
     const zodSchema = buildZodSchema(resourceDef.fields)
-    const data = zodSchema.parse(body)
+    const parsed = zodSchema.parse(body)
 
     const record = await prisma.dynamicRecord.create({
-      data: { appId, resourceName: resource, data: data as object, createdBy: session.userId },
+      data: { appId, resourceName: resource, data: JSON.stringify(parsed), createdBy: session.userId },
     })
 
-    const result = { id: record.id, ...(record.data as object), createdAt: record.createdAt, updatedAt: record.updatedAt }
-
-    // Fire workflows asynchronously
+    const result = { id: record.id, ...parsed, createdAt: record.createdAt, updatedAt: record.updatedAt }
     triggerWorkflowsForEvent(appId, config, 'record.created', resource, result)
-
     return Response.json(result, { status: 201 })
-  } catch (err) {
-    return errorResponse(err)
-  }
+  } catch (err) { return errorResponse(err) }
 }

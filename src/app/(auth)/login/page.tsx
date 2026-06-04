@@ -8,70 +8,81 @@ export default function LoginPage() {
   const [state, action, pending] = useActionState(login, undefined)
 
   return (
-    <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 space-y-6">
-      <div className="text-center">
-        <div className="text-4xl mb-2">⚡</div>
-        <h1 className="text-2xl font-bold text-gray-900">AI App Generator</h1>
-        <p className="text-gray-500 mt-1 text-sm">Sign in to your account</p>
+    <div className="animate-modal">
+      {/* logo */}
+      <div className="text-center mb-8 animate-fade-up">
+        <div className="inline-flex items-center justify-center w-14 h-14 gradient-animated rounded-2xl text-white font-black text-2xl mb-4 animate-pulse-glow">
+          ⚡
+        </div>
+        <h1 className="text-2xl font-black text-white tracking-tight">Welcome back</h1>
+        <p className="text-slate-400 text-sm mt-1">Sign in to AI App Generator</p>
       </div>
 
-      {state?.errors?.general && (
-        <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 text-sm">
-          {state.errors.general.join(', ')}
-        </div>
-      )}
+      {/* card */}
+      <div className="glass rounded-3xl p-8 shadow-2xl animate-fade-up delay-100" style={{animationFillMode:'forwards'}}>
+        {state?.errors?.general && (
+          <div className="mb-5 flex items-start gap-3 bg-red-500/10 border border-red-500/20 text-red-300 rounded-xl p-3 text-sm animate-scale-in">
+            <span className="text-base shrink-0">⚠️</span>
+            {state.errors.general.join(', ')}
+          </div>
+        )}
 
-      <form action={action} className="space-y-4">
-        <div>
-          <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-            Email
-          </label>
-          <input
-            id="email"
-            name="email"
-            type="email"
-            autoComplete="email"
-            required
-            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-sm"
-            placeholder="you@example.com"
-          />
-          {state?.errors?.email && (
-            <p className="text-red-600 text-xs mt-1">{state.errors.email.join(', ')}</p>
-          )}
-        </div>
+        <form action={action} className="space-y-5">
+          <div className="animate-fade-up delay-200" style={{animationFillMode:'forwards'}}>
+            <label htmlFor="email" className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+              Email address
+            </label>
+            <div className="relative">
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 text-base">✉</span>
+              <input
+                id="email" name="email" type="email" autoComplete="email" required
+                className="w-full bg-white/5 border border-white/10 text-white placeholder-slate-600 rounded-xl pl-11 pr-4 py-3.5 text-sm focus:outline-none focus:border-indigo-500 focus:bg-white/8 transition-all duration-300"
+                placeholder="you@example.com"
+              />
+            </div>
+            {state?.errors?.email && <p className="text-red-400 text-xs mt-1.5">{state.errors.email.join(', ')}</p>}
+          </div>
 
-        <div>
-          <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-            Password
-          </label>
-          <input
-            id="password"
-            name="password"
-            type="password"
-            autoComplete="current-password"
-            required
-            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-sm"
-            placeholder="••••••••"
-          />
-          {state?.errors?.password && (
-            <p className="text-red-600 text-xs mt-1">{state.errors.password.join(', ')}</p>
-          )}
-        </div>
+          <div className="animate-fade-up delay-300" style={{animationFillMode:'forwards'}}>
+            <label htmlFor="password" className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+              Password
+            </label>
+            <div className="relative">
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 text-base">🔑</span>
+              <input
+                id="password" name="password" type="password" autoComplete="current-password" required
+                className="w-full bg-white/5 border border-white/10 text-white placeholder-slate-600 rounded-xl pl-11 pr-4 py-3.5 text-sm focus:outline-none focus:border-indigo-500 focus:bg-white/8 transition-all duration-300"
+                placeholder="••••••••"
+              />
+            </div>
+            {state?.errors?.password && <p className="text-red-400 text-xs mt-1.5">{state.errors.password.join(', ')}</p>}
+          </div>
 
-        <button
-          type="submit"
-          disabled={pending}
-          className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-semibold rounded-lg transition-colors text-sm"
-        >
-          {pending ? 'Signing in…' : 'Sign In'}
-        </button>
-      </form>
+          <div className="animate-fade-up delay-400 pt-1" style={{animationFillMode:'forwards'}}>
+            <button
+              type="submit" disabled={pending}
+              className="relative w-full py-3.5 rounded-xl font-bold text-white text-sm overflow-hidden gradient-animated hover:opacity-90 disabled:opacity-50 transition-all duration-300 hover:scale-[1.02] active:scale-[0.98]"
+            >
+              {pending ? (
+                <span className="flex items-center justify-center gap-2">
+                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Signing in…
+                </span>
+              ) : 'Sign in →'}
+            </button>
+          </div>
+        </form>
+      </div>
 
-      <p className="text-center text-sm text-gray-500">
+      <p className="text-center text-sm text-slate-500 mt-6 animate-fade-up delay-500" style={{animationFillMode:'forwards'}}>
         No account?{' '}
-        <Link href="/register" className="text-indigo-600 hover:text-indigo-700 font-medium">
-          Create one
+        <Link href="/register" className="text-indigo-400 hover:text-indigo-300 font-semibold transition-colors">
+          Create one free
         </Link>
+      </p>
+
+      <p className="text-center text-xs text-slate-700 mt-3 animate-fade-up delay-600" style={{animationFillMode:'forwards'}}>
+        Demo: admin@demo.com · password123
       </p>
     </div>
   )

@@ -4,16 +4,14 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
 }
-
-// ── App Configuration ─────────────────────────────────────────────────────────
 
 model App {
   id          String   @id @default(uuid())
   name        String
   description String?
-  configJson  Json
+  configJson  String
   version     String   @default("1.0.0")
   isPublished Boolean  @default(false)
   ownerId     String
@@ -21,17 +19,15 @@ model App {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  users         AppUser[]
-  importJobs    ImportJob[]
-  workflowRuns  WorkflowRun[]
-  exportJobs    ExportJob[]
-  auditLogs     AuditLog[]
+  users          AppUser[]
+  importJobs     ImportJob[]
+  workflowRuns   WorkflowRun[]
+  exportJobs     ExportJob[]
+  auditLogs      AuditLog[]
   configVersions ConfigVersion[]
 
   @@index([ownerId])
 }
-
-// ── Auth & Users ──────────────────────────────────────────────────────────────
 
 model User {
   id            String    @id @default(uuid())
@@ -39,7 +35,6 @@ model User {
   name          String?
   passwordHash  String?
   emailVerified DateTime?
-  image         String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -59,16 +54,13 @@ model AppUser {
 
   @@unique([appId, userId])
   @@index([appId])
-  @@index([userId])
 }
-
-// ── Dynamic Records ───────────────────────────────────────────────────────────
 
 model DynamicRecord {
   id           String    @id @default(uuid())
   appId        String
   resourceName String
-  data         Json
+  data         String
   createdBy    String?
   updatedBy    String?
   deletedAt    DateTime?
@@ -76,79 +68,55 @@ model DynamicRecord {
   updatedAt    DateTime  @updatedAt
 
   @@index([appId, resourceName])
-  @@index([appId, resourceName, deletedAt])
 }
 
-// ── CSV Import ────────────────────────────────────────────────────────────────
-
 model ImportJob {
-  id             String          @id @default(uuid())
+  id             String    @id @default(uuid())
   appId          String
   resourceName   String
   fileName       String
-  csvData        String          @db.Text
-  status         ImportJobStatus @default(PENDING)
-  totalRows      Int             @default(0)
-  processedRows  Int             @default(0)
-  failedRows     Int             @default(0)
-  columnMappings Json?
-  errors         Json?
+  csvData        String
+  status         String    @default("PENDING")
+  totalRows      Int       @default(0)
+  processedRows  Int       @default(0)
+  failedRows     Int       @default(0)
+  columnMappings String?
+  errors         String?
   startedAt      DateTime?
   completedAt    DateTime?
   createdBy      String
-  createdAt      DateTime        @default(now())
+  createdAt      DateTime  @default(now())
 
   app App @relation(fields: [appId], references: [id], onDelete: Cascade)
 
   @@index([appId])
-  @@index([status])
 }
-
-enum ImportJobStatus {
-  PENDING
-  MAPPING
-  PROCESSING
-  COMPLETED
-  FAILED
-  CANCELLED
-}
-
-// ── Workflow Engine ───────────────────────────────────────────────────────────
 
 model WorkflowRun {
-  id          String            @id @default(uuid())
+  id          String    @id @default(uuid())
   appId       String
   workflowId  String
-  status      WorkflowRunStatus @default(PENDING)
-  triggerData Json?
+  status      String    @default("PENDING")
+  triggerData String?
   startedAt   DateTime?
   completedAt DateTime?
   error       String?
-  createdAt   DateTime          @default(now())
+  createdAt   DateTime  @default(now())
 
   app   App           @relation(fields: [appId], references: [id], onDelete: Cascade)
   steps WorkflowStep[]
 
-  @@index([appId, workflowId])
-  @@index([status])
-}
-
-enum WorkflowRunStatus {
-  PENDING
-  RUNNING
-  COMPLETED
-  FAILED
-  CANCELLED
+  @@index([appId])
 }
 
 model WorkflowStep {
-  id          String             @id @default(uuid())
+  id          String    @id @default(uuid())
   runId       String
   stepId      String
   stepType    String
-  status      WorkflowStepStatus @default(PENDING)
-  input       Json?
-  output      Json?
+  status      String    @default("PENDING")
+  input       String?
+  output      String?
   error       String?
   startedAt   DateTime?
   completedAt DateTime?
@@ -158,40 +126,20 @@ model WorkflowStep {
   @@index([runId])
 }
 
-enum WorkflowStepStatus {
-  PENDING
-  RUNNING
-  COMPLETED
-  FAILED
-  SKIPPED
-}
-
-// ── GitHub Export ─────────────────────────────────────────────────────────────
-
 model ExportJob {
-  id          String          @id @default(uuid())
+  id          String    @id @default(uuid())
   appId       String
-  status      ExportJobStatus @default(PENDING)
+  status      String    @default("PENDING")
   repoUrl     String?
   error       String?
   requestedBy String
-  createdAt   DateTime        @default(now())
+  createdAt   DateTime  @default(now())
   completedAt DateTime?
 
   app App @relation(fields: [appId], references: [id], onDelete: Cascade)
 
   @@index([appId])
 }
-
-enum ExportJobStatus {
-  PENDING
-  GENERATING
-  PUSHING
-  COMPLETED
-  FAILED
-}
-
-// ── Audit Log ─────────────────────────────────────────────────────────────────
 
 model AuditLog {
   id        String   @id @default(uuid())
@@ -200,26 +148,24 @@ model AuditLog {
   action    String
   resource  String?
   recordId  String?
-  meta      Json?
+  meta      String?
   createdAt DateTime @default(now())
 
   app App @relation(fields: [appId], references: [id], onDelete: Cascade)
 
-  @@index([appId, createdAt])
+  @@index([appId])
 }
-
-// ── Config Version History ────────────────────────────────────────────────────
 
 model ConfigVersion {
   id         String   @id @default(uuid())
   appId      String
   version    String
-  configJson Json
+  configJson String
   changedBy  String
   changeNote String?
   createdAt  DateTime @default(now())
 
   app App @relation(fields: [appId], references: [id], onDelete: Cascade)
 
-  @@index([appId, createdAt])
+  @@index([appId])
 }

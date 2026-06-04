@@ -12,35 +12,32 @@ const CreateImportSchema = z.object({
   columnMappings: z.record(z.string()).optional(),
 })
 
-export async function GET(request: NextRequest) {
+export async function GET(req: NextRequest) {
   try {
     const session = await getSession()
     if (!session) return Response.json({ error: { code: 'UNAUTHENTICATED', message: 'Not authenticated' } }, { status: 401 })
 
-    const appId = request.headers.get('x-app-id') ?? request.nextUrl.searchParams.get('appId')
+    const appId = req.headers.get('x-app-id') ?? req.nextUrl.searchParams.get('appId')
     if (!appId) return Response.json({ error: { code: 'BAD_REQUEST', message: 'appId required' } }, { status: 400 })
 
     const jobs = await prisma.importJob.findMany({
-      where:   { appId },
-      orderBy: { createdAt: 'desc' },
-      select:  { id: true, fileName: true, resourceName: true, status: true, totalRows: true, processedRows: true, failedRows: true, createdAt: true },
+      where: { appId }, orderBy: { createdAt: 'desc' },
+      select: { id: true, fileName: true, resourceName: true, status: true, totalRows: true, processedRows: true, failedRows: true, createdAt: true },
     })
     return Response.json({ data: jobs })
-  } catch (err) {
-    return errorResponse(err)
-  }
+  } catch (err) { return errorResponse(err) }
 }
 
-export async function POST(request: NextRequest) {
+export async function POST(req: NextRequest) {
   try {
     const session = await getSession()
     if (!session) return Response.json({ error: { code: 'UNAUTHENTICATED', message: 'Not authenticated' } }, { status: 401 })
 
-    const appId = request.headers.get('x-app-id') ?? request.nextUrl.searchParams.get('appId')
+    const appId = req.headers.get('x-app-id') ?? req.nextUrl.searchParams.get('appId')
     if (!appId) return Response.json({ error: { code: 'BAD_REQUEST', message: 'appId required' } }, { status: 400 })
 
     const { config } = await loadConfig(appId)
-    const body = await request.json()
+    const body = await req.json()
     const { resourceName, fileName, csvData, columnMappings } = CreateImportSchema.parse(body)
 
     const resourceDef = config.resources.find(r => r.name === resourceName)
@@ -48,18 +45,12 @@ export async function POST(request: NextRequest) {
 
     const job = await prisma.importJob.create({
       data: {
-        appId,
-        resourceName,
-        fileName,
-        csvData,
-        createdBy:      session.userId,
-        columnMappings: columnMappings ?? null,
-        status:         columnMappings ? 'PROCESSING' : 'MAPPING',
+        appId, resourceName, fileName, csvData, createdBy: session.userId,
+        columnMappings: columnMappings ? JSON.stringify(columnMappings) : null,
+        status: columnMappings ? 'PROCESSING' : 'MAPPING',
       },
     })
 
     return Response.json(job, { status: 201 })
-  } catch (err) {
-    return errorResponse(err)
-  }
+  } catch (err) { return errorResponse(err) }
 }

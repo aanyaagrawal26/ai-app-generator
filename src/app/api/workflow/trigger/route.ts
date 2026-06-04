@@ -10,15 +10,15 @@ const TriggerSchema = z.object({
   triggerData: z.record(z.unknown()).optional(),
 })
 
-export async function POST(request: NextRequest) {
+export async function POST(req: NextRequest) {
   try {
     const session = await getSession()
     if (!session) return Response.json({ error: { code: 'UNAUTHENTICATED', message: 'Not authenticated' } }, { status: 401 })
 
-    const appId = request.headers.get('x-app-id') ?? request.nextUrl.searchParams.get('appId')
+    const appId = req.headers.get('x-app-id') ?? req.nextUrl.searchParams.get('appId')
     if (!appId) return Response.json({ error: { code: 'BAD_REQUEST', message: 'appId required' } }, { status: 400 })
 
-    const body = await request.json()
+    const body = await req.json()
     const { workflowId, triggerData } = TriggerSchema.parse(body)
 
     const { config } = await loadConfig(appId)
@@ -26,10 +26,8 @@ export async function POST(request: NextRequest) {
     if (!wf) return Response.json({ error: { code: 'NOT_FOUND', message: `Workflow not found: ${workflowId}` } }, { status: 404 })
 
     runWorkflow(appId, workflowId, config, triggerData ?? {})
-      .catch(err => console.error('[Workflow] manual trigger failed:', err))
+      .catch(err => console.error('[Workflow] trigger failed:', err))
 
     return Response.json({ started: true, workflowId })
-  } catch (err) {
-    return errorResponse(err)
-  }
+  } catch (err) { return errorResponse(err) }
 }

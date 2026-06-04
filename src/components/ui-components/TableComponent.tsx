@@ -12,10 +12,10 @@ interface Props {
   config:    Record<string, unknown>
 }
 
-interface Record { id: string; [key: string]: unknown }
+interface DynRecord { id: string; [key: string]: unknown }
 
 export default function TableComponent({ appId, appConfig, resource, title, config }: Props) {
-  const [rows, setRows]   = useState<Record[]>([])
+  const [rows, setRows]   = useState<DynRecord[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage]   = useState(1)
   const [loading, setLoading] = useState(false)
