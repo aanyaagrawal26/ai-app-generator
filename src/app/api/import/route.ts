@@ -9,7 +9,7 @@ const CreateImportSchema = z.object({
   resourceName:   z.string(),
   fileName:       z.string(),
   csvData:        z.string().min(1),
-  columnMappings: z.record(z.string()).optional(),
+ columnMappings: z.record(z.string(), z.string()).optional(),
 })
 
 export async function GET(req: NextRequest) {

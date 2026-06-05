@@ -30,7 +30,10 @@ export async function POST(request: NextRequest, ctx: RouteContext<'/api/import/
     if (!job) return Response.json({ error: { code: 'NOT_FOUND', message: 'Job not found' } }, { status: 404 })
 
     const body = await request.json().catch(() => ({}))
-    const columnMappings: Record<string, string> = body.columnMappings ?? (job.columnMappings as Record<string, string>) ?? {}
+    const rawMappings = body.columnMappings ?? job.columnMappings
+    const columnMappings: Record<string, string> = (typeof rawMappings === 'string'
+      ? JSON.parse(rawMappings)
+      : rawMappings) ?? {}
 
     const { config } = await loadConfig(job.appId)
     const resourceDef = config.resources.find(r => r.name === job.resourceName)

@@ -7,7 +7,7 @@ import { errorResponse } from '@/lib/utils/apiError'
 
 const TriggerSchema = z.object({
   workflowId:  z.string(),
-  triggerData: z.record(z.unknown()).optional(),
+  triggerData: z.record(z.string(), z.unknown()).optional(),
 })
 
 export async function POST(req: NextRequest) {

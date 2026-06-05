@@ -6,7 +6,6 @@ generator client {
 datasource db {
   provider = "sqlite"
 }
-
 model App {
   id          String   @id @default(uuid())
   name        String

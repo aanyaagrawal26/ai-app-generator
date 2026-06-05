@@ -34,7 +34,7 @@ export function buildZodSchema(fields: Field[]): z.ZodObject<any> {
           ? z.array(z.enum(field.options as [string, ...string[]]))
           : z.array(z.string()); break
       case 'json':
-        schema = z.record(z.unknown()); break
+        schema = z.record(z.string(), z.unknown()); break
       default:
         schema = field.validation?.pattern
           ? z.string().regex(new RegExp(field.validation.pattern))
@@ -42,7 +42,11 @@ export function buildZodSchema(fields: Field[]): z.ZodObject<any> {
     }
 
     if (!field.required) schema = schema.optional()
-    if (field.defaultValue !== undefined) schema = schema.default(field.defaultValue)
+    if (field.defaultValue !== undefined) {
+      const dv = field.defaultValue
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      schema = (schema as any).default(() => dv)
+    }
     shape[field.name] = schema
   }
 

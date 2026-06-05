@@ -1,12 +1,16 @@
 import { z } from 'zod'
 
+// Zod v4: .catch() TS types require 2 args but runtime accepts 1.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const zCatch = <T extends z.ZodType>(schema: T, val: unknown) => (schema as any).catch(() => val) as T
+
 // ── Field ────────────────────────────────────────────────────────────────────
 
-export const FieldTypeSchema = z.enum([
+export const FieldTypeSchema = zCatch(z.enum([
   'text','number','boolean','date','datetime',
   'email','url','select','multiselect','relation',
   'richtext','json','file',
-]).catch(() => 'text' as 'text')
+]), 'text')
 
 export const FieldSchema = z.object({
   name:         z.string().min(1),
@@ -72,11 +76,11 @@ export type Component = {
 export const ComponentSchema: z.ZodType<Component> = z.lazy(() =>
   z.object({
     id:       z.string(),
-    type:     z.string().catch(() => 'unknown'),
+    type:     zCatch(z.string(), 'unknown'),
     resource: z.string().optional(),
     title:    z.string().optional(),
-    config:   z.record(z.unknown()).default({}),
-    children: z.array(ComponentSchema).default([]),
+    config:   z.record(z.string(), z.unknown()).default(() => ({})),
+    children: z.array(ComponentSchema).default(() => []),
   })
 )
 
@@ -87,7 +91,7 @@ export const PageSchema = z.object({
   title:       z.string().optional(),
   layout:      z.enum(['default','blank','sidebar','centered']).default('default'),
   permissions: z.array(z.string()).default(['*']),
-  components:  z.array(ComponentSchema).default([]),
+  components:  z.array(ComponentSchema).default(() => []),
 })
 
 export type Page = z.infer<typeof PageSchema>
@@ -129,7 +133,7 @@ export const WorkflowTriggerSchema = z.discriminatedUnion('type', [
 export const WorkflowStepSchema = z.object({
   id:        z.string(),
   type:      z.enum(['send_email','webhook','update_record','create_record','condition','delay','script']),
-  config:    z.record(z.unknown()).default(() => ({})),
+  config:    z.record(z.string(), z.unknown()).default(() => ({})),
   onSuccess: z.string().nullable().optional(),
   onFailure: z.string().nullable().optional(),
 })

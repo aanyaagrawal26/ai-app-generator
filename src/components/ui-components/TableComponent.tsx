@@ -58,7 +58,7 @@ export default function TableComponent({ appId, appConfig, resource, title, conf
       <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
         <h3 className="font-semibold text-gray-900">{title ?? resourceDef?.label ?? resource}</h3>
         <div className="flex items-center gap-3">
-          {config.searchable && (
+      {config.searchable === true && (
             <input
               value={search} onChange={e => { setSearch(e.target.value); setPage(1) }}
               placeholder="Search…"
@@ -80,7 +80,7 @@ export default function TableComponent({ appId, appConfig, resource, title, conf
                   {resourceDef?.fields.find(f => f.name === col)?.label ?? col}
                 </th>
               ))}
-              {config.actions && (
+        {config.actions === true && (
                 <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
               )}
             </tr>
@@ -98,7 +98,7 @@ export default function TableComponent({ appId, appConfig, resource, title, conf
                       {formatCell(row[col])}
                     </td>
                   ))}
-                  {config.actions && (
+          {config.actions === true && (
                     <td className="px-4 py-3 text-right">
                       <button
                         onClick={() => handleDelete(row.id)}
