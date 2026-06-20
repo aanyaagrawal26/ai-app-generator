@@ -1,11 +1,64 @@
 @import "tailwindcss";
 
+/* ── Design tokens ─────────────────────────────────────────────────
+   Semantic, theme-aware variables. Dark is the default (cyberpunk AI
+   aesthetic); `.light` overrides for the optional light theme.        */
+:root, .dark {
+  --bg:          #05050f;   /* page backdrop                  */
+  --bg-app:      #07091a;   /* authenticated app canvas       */
+  --bg-elevated: #0d0f24;   /* sidebars / solid panels        */
+  --surface:        rgba(255,255,255,0.03); /* glass card fill */
+  --surface-hover:  rgba(255,255,255,0.06);
+  --surface-solid:  #0c0c1e;
+  --border:      rgba(255,255,255,0.08);
+  --border-strong: rgba(255,255,255,0.14);
+  --fg:          #f1f5f9;   /* primary text   */
+  --fg-muted:    #94a3b8;   /* secondary text */
+  --fg-faint:    #64748b;   /* tertiary text  */
+  --ring:        rgba(99,102,241,0.55);
+  color-scheme: dark;
+}
+.light {
+  --bg:          #f6f7fb;
+  --bg-app:      #ffffff;
+  --bg-elevated: #ffffff;
+  --surface:        rgba(15,23,42,0.025);
+  --surface-hover:  rgba(15,23,42,0.05);
+  --surface-solid:  #ffffff;
+  --border:      rgba(15,23,42,0.10);
+  --border-strong: rgba(15,23,42,0.16);
+  --fg:          #0f172a;
+  --fg-muted:    #475569;
+  --fg-faint:    #94a3b8;
+  --ring:        rgba(99,102,241,0.5);
+  color-scheme: light;
+}
+
+/* Expose tokens as Tailwind color utilities (bg-app, text-fg, …).
+   `inline` resolves the var at use-site so theme switching is live.   */
+@theme inline {
+  --color-bg:          var(--bg);
+  --color-app:         var(--bg-app);
+  --color-elevated:    var(--bg-elevated);
+  --color-surface:     var(--surface-solid);
+  --color-edge:        var(--border);
+  --color-edge-strong: var(--border-strong);
+  --color-fg:          var(--fg);
+  --color-fg-muted:    var(--fg-muted);
+  --color-fg-faint:    var(--fg-faint);
+}
+
 html { scroll-behavior: smooth; }
-body { background: #05050f; color: #f1f5f9; -webkit-font-smoothing: antialiased; }
+body { background: var(--bg); color: var(--fg); -webkit-font-smoothing: antialiased; transition: background .4s ease, color .25s ease; }
 ::selection { background: rgba(99,102,241,0.4); color: white; }
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgba(99,102,241,0.4); border-radius: 9999px; }
+
+/* Reusable token-driven surfaces (work in both themes) */
+.surface-card { background: var(--surface); border: 1px solid var(--border); }
+.surface-card-hover:hover { background: var(--surface-hover); border-color: var(--border-strong); }
+.divide-edge { border-color: var(--border); }
 
 /* ── Keyframes ─────────────────────────────────────────────────── */
 @keyframes float  { 0%,100%{transform:translateY(0) rotate(0deg)} 33%{transform:translateY(-20px) rotate(2deg)} 66%{transform:translateY(-8px) rotate(-1deg)} }
@@ -131,3 +184,51 @@ body { background: #05050f; color: #f1f5f9; -webkit-font-smoothing: antialiased;
   background: linear-gradient(90deg,transparent,rgba(255,255,255,.08),transparent);
   animation: beam 3s ease-in-out infinite;
 }
+
+/* ── Command palette (cmdk) ────────────────────────────────────────── */
+[cmdk-overlay] {
+  position: fixed; inset: 0; z-index: 90;
+  background: rgba(2,4,12,.6); backdrop-filter: blur(6px);
+  animation: fade-in .18s ease both;
+}
+.cmdk-root {
+  position: fixed; z-index: 91; left: 50%; top: 18vh; transform: translateX(-50%);
+  width: min(92vw, 620px);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  border-radius: 16px;
+  box-shadow: 0 32px 80px rgba(0,0,0,.55), 0 0 0 1px rgba(99,102,241,.08);
+  overflow: hidden;
+  animation: modal-in .22s cubic-bezier(.22,1,.36,1) both;
+}
+.cmdk-search {
+  display: flex; align-items: center; gap: 10px;
+  padding: 14px 16px; border-bottom: 1px solid var(--border);
+}
+.cmdk-search input {
+  flex: 1; background: transparent; border: 0; outline: 0;
+  color: var(--fg); font-size: 14px;
+}
+.cmdk-search input::placeholder { color: var(--fg-faint); }
+.cmdk-kbd {
+  font-size: 10px; font-weight: 600; letter-spacing: .04em;
+  color: var(--fg-faint); padding: 2px 6px; border-radius: 6px;
+  border: 1px solid var(--border); background: var(--surface);
+}
+.cmdk-root [cmdk-list] { max-height: 52vh; overflow-y: auto; padding: 8px; scroll-padding: 8px; }
+.cmdk-root [cmdk-group-heading] {
+  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .12em;
+  color: var(--fg-faint); padding: 12px 10px 6px;
+}
+.cmdk-root [cmdk-item] {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 12px; border-radius: 10px; cursor: pointer;
+  color: var(--fg-muted); font-size: 14px; font-weight: 500;
+  transition: color .12s ease, background .12s ease;
+}
+.cmdk-root [cmdk-item][data-selected=true] {
+  background: linear-gradient(135deg, rgba(99,102,241,.22), rgba(236,72,153,.12));
+  color: var(--fg);
+}
+.cmdk-root [cmdk-item] svg { color: #818cf8; }
+.cmdk-empty { padding: 28px 12px; text-align: center; color: var(--fg-faint); font-size: 13px; }
