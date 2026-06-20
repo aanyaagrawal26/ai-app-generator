@@ -34,7 +34,22 @@ export async function login(_state: AuthState, formData: FormData): Promise<Auth
 
   const { email, password } = validated.data
 
-  const user = await prisma.user.findUnique({ where: { email } })
+  // DB-touching work is isolated so an infra/schema failure becomes a clean
+  // inline error instead of an uncaught Server Component render crash.
+  // NOTE: redirect() throws a control-flow signal — it must stay OUT of try/catch.
+  let user: Awaited<ReturnType<typeof prisma.user.findUnique>> = null
+  let role = 'user'
+  try {
+    user = await prisma.user.findUnique({ where: { email } })
+    if (user) {
+      const appUser = await prisma.appUser.findFirst({ where: { userId: user.id } })
+      role = appUser?.role ?? 'user'
+    }
+  } catch (err) {
+    console.error('[auth.login] database error:', err)
+    return { errors: { general: ['We couldn’t reach the service right now. Please try again shortly.'] } }
+  }
+
   if (!user || !user.passwordHash) {
     return { errors: { general: ['Invalid email or password'] } }
   }
@@ -44,15 +59,7 @@ export async function login(_state: AuthState, formData: FormData): Promise<Auth
     return { errors: { general: ['Invalid email or password'] } }
   }
 
-  // Get the user's first app role (default to 'user')
-  const appUser = await prisma.appUser.findFirst({ where: { userId: user.id } })
-
-  await createSession({
-    id:   user.id,
-    email: user.email,
-    name:  user.name,
-    role:  appUser?.role ?? 'user',
-  })
+  await createSession({ id: user.id, email: user.email, name: user.name, role })
 
   redirect('/dashboard')
 }
@@ -70,15 +77,23 @@ export async function register(_state: AuthState, formData: FormData): Promise<A
 
   const { name, email, password } = validated.data
 
-  const existing = await prisma.user.findUnique({ where: { email } })
-  if (existing) {
-    return { errors: { email: ['Email already in use'] } }
+  // Same isolation as login: keep redirect() outside the try/catch.
+  let user: Awaited<ReturnType<typeof prisma.user.create>> | null = null
+  try {
+    const existing = await prisma.user.findUnique({ where: { email } })
+    if (existing) {
+      return { errors: { email: ['Email already in use'] } }
+    }
+    const passwordHash = await bcrypt.hash(password, 12)
+    user = await prisma.user.create({ data: { name, email, passwordHash } })
+  } catch (err) {
+    console.error('[auth.register] database error:', err)
+    return { errors: { general: ['We couldn’t create your account right now. Please try again shortly.'] } }
   }
 
-  const passwordHash = await bcrypt.hash(password, 12)
-  const user = await prisma.user.create({
-    data: { name, email, passwordHash },
-  })
+  if (!user) {
+    return { errors: { general: ['We couldn’t create your account right now. Please try again shortly.'] } }
+  }
 
   await createSession({ id: user.id, email: user.email, name: user.name, role: 'admin' })
   redirect('/dashboard')
